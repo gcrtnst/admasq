@@ -5,6 +5,51 @@ import (
 	"io"
 )
 
+type SimpleLoader struct {
+	p   *SimpleParser
+	exc bool
+
+	f   Filter
+	err error
+}
+
+func NewSimpleLoader(r io.Reader) *SimpleLoader {
+	p := NewSimpleParser(r)
+	return &SimpleLoader{p: p}
+}
+
+func (l *SimpleLoader) SetException(exc bool) {
+	l.exc = exc
+}
+
+func (l *SimpleLoader) Load() bool {
+	if !l.p.Parse() {
+		l.f = Filter{}
+		l.err = l.p.Err()
+		return false
+	}
+
+	var err error
+	domain := l.p.Domain()
+	domain, err = IDNAToASCII(domain)
+	if err != nil {
+		err = &ResourceError{
+			Line: l.p.Line(),
+			Err:  err,
+		}
+	}
+
+	l.f = Filter{
+		Exception: l.exc,
+		Domain:    domain,
+	}
+	l.err = err
+	return true
+}
+
+func (l *SimpleLoader) Filter() Filter { return l.f }
+func (l *SimpleLoader) Err() error     { return l.err }
+
 type SimpleParser struct {
 	s *bufio.Scanner
 

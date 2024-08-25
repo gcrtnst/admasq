@@ -6,6 +6,83 @@ import (
 	"testing"
 )
 
+func TestSimpleLoaderLoadEmpty(t *testing.T) {
+	r := strings.NewReader("")
+	l := NewSimpleLoader(r)
+	HelpSimpleLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestSimpleLoaderLoadNormal(t *testing.T) {
+	r := strings.NewReader("1.example.com\n2.example.com\n")
+	l := NewSimpleLoader(r)
+	HelpSimpleLoaderTest(t, l, true, Filter{Domain: "1.example.com"}, false)
+	HelpSimpleLoaderTest(t, l, true, Filter{Domain: "2.example.com"}, false)
+	HelpSimpleLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestSimpleLoaderLoadException(t *testing.T) {
+	r := strings.NewReader("1.example.com\n2.example.com\n")
+	l := NewSimpleLoader(r)
+	l.SetException(true)
+	HelpSimpleLoaderTest(t, l, true, Filter{Exception: true, Domain: "1.example.com"}, false)
+	HelpSimpleLoaderTest(t, l, true, Filter{Exception: true, Domain: "2.example.com"}, false)
+	HelpSimpleLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestSimpleLoaderIDNANormal(t *testing.T) {
+	r := strings.NewReader("お名前.com\n")
+	l := NewSimpleLoader(r)
+	HelpSimpleLoaderTest(t, l, true, Filter{Domain: "xn--t8jx73hngb.com"}, false)
+	HelpSimpleLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestSimpleLoaderIDNAError(t *testing.T) {
+	r := strings.NewReader("--.com\n")
+	l := NewSimpleLoader(r)
+
+	HelpSimpleLoaderTest(t, l, true, Filter{Domain: "--.com"}, true)
+	err := l.Err()
+	if errResErr, ok := err.(*ResourceError); !ok {
+		t.Errorf("l.Err().(type): expected *IDNAError, got %T", err)
+	} else {
+		const wantErrName = ""
+		if errResErr.Name != wantErrName {
+			t.Errorf("l.Err().Name: expected %q, got %q", wantErrName, errResErr.Name)
+		}
+
+		const wantErrLine = 1
+		if errResErr.Line != wantErrLine {
+			t.Errorf("l.Err().Line: expected %d, got %d", wantErrLine, errResErr.Line)
+		}
+
+		if errResErr.Err == nil {
+			t.Error("l.Err().Err: expected non-nil error, got nil")
+		}
+	}
+
+	HelpSimpleLoaderTest(t, l, false, Filter{}, false)
+}
+
+func HelpSimpleLoaderTest(t *testing.T, l *SimpleLoader, wantOK bool, wantF Filter, wantHasErr bool) {
+	t.Helper()
+
+	gotOK := l.Load()
+	if gotOK != wantOK {
+		t.Errorf("ok: expected %t, got %t", wantOK, gotOK)
+	}
+
+	gotF := l.Filter()
+	if gotF != wantF {
+		t.Errorf("l.Filter(): expected %#v, got %#v", wantF, gotF)
+	}
+
+	gotErr := l.Err()
+	gotHasErr := gotErr != nil
+	if gotHasErr != wantHasErr {
+		t.Errorf("l.Err() != nil: expected %t, got %t", wantHasErr, gotHasErr)
+	}
+}
+
 func TestSimpleParserParseEmpty(t *testing.T) {
 	r := strings.NewReader("")
 	p := NewSimpleParser(r)
