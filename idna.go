@@ -1,6 +1,21 @@
 package main
 
-import "strconv"
+import (
+	"strconv"
+
+	"golang.org/x/net/idna"
+)
+
+func IDNAToASCII(s string) (string, error) {
+	t, err := idna.Lookup.ToASCII(s)
+	if err != nil {
+		err = &IDNAError{
+			Domain: s,
+			Err:    err,
+		}
+	}
+	return t, err
+}
 
 type IDNAError struct {
 	Domain string
