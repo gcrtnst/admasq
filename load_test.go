@@ -86,6 +86,27 @@ func HelpLoaderTest(t *testing.T, l Loader, wantOK bool, wantF Filter, wantHasEr
 	}
 }
 
+func HelpResourceErrorTest(t *testing.T, name string, gotErr error, wantName string, wantLine int) {
+	t.Helper()
+
+	gotResErr, ok := gotErr.(*ResourceError)
+	if !ok {
+		t.Errorf("%s.(type): expected *ResourceError, got %T", name, gotErr)
+	}
+
+	if gotResErr.Name != wantName {
+		t.Errorf("%s.Name: expected %q, got %q", name, wantName, gotResErr.Name)
+	}
+
+	if gotResErr.Line != wantLine {
+		t.Errorf("%s.Line: expected %d, got %d", name, wantLine, gotResErr.Line)
+	}
+
+	if gotResErr.Err == nil {
+		t.Errorf("%s.Err: expected non-nil error, got nil", name)
+	}
+}
+
 type ErrorReader struct {
 	Err error
 }

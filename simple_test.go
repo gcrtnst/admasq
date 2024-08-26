@@ -41,24 +41,7 @@ func TestSimpleLoaderIDNAError(t *testing.T) {
 	l := NewSimpleLoader(r)
 
 	HelpLoaderTest(t, l, true, Filter{Domain: "--.com"}, true)
-	err := l.Err()
-	if errResErr, ok := err.(*ResourceError); !ok {
-		t.Errorf("l.Err().(type): expected *IDNAError, got %T", err)
-	} else {
-		const wantErrName = ""
-		if errResErr.Name != wantErrName {
-			t.Errorf("l.Err().Name: expected %q, got %q", wantErrName, errResErr.Name)
-		}
-
-		const wantErrLine = 1
-		if errResErr.Line != wantErrLine {
-			t.Errorf("l.Err().Line: expected %d, got %d", wantErrLine, errResErr.Line)
-		}
-
-		if errResErr.Err == nil {
-			t.Error("l.Err().Err: expected non-nil error, got nil")
-		}
-	}
+	HelpResourceErrorTest(t, "l.Err()", l.Err(), "", 1)
 
 	HelpLoaderTest(t, l, false, Filter{}, false)
 }
