@@ -1,10 +1,186 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"net/netip"
 	"slices"
+	"strings"
 	"testing"
 )
+
+func TestHostsParserParseSingle(t *testing.T) {
+	tt := []struct {
+		name      string
+		inBuf     []byte
+		wantOK    bool
+		wantLine  int
+		wantIP    netip.Addr
+		wantHosts []string
+		wantIsErr bool
+	}{
+		{
+			name:      "Empty",
+			inBuf:     []byte{},
+			wantOK:    false,
+			wantLine:  0,
+			wantIP:    netip.Addr{},
+			wantHosts: nil,
+			wantIsErr: false,
+		},
+		{
+			name:      "Normal",
+			inBuf:     []byte("127.0.0.1 example.com\n"),
+			wantOK:    true,
+			wantLine:  1,
+			wantIP:    netip.AddrFrom4([4]byte{127, 0, 0, 1}),
+			wantHosts: []string{"example.com"},
+			wantIsErr: false,
+		},
+		{
+			name:      "Warning",
+			inBuf:     []byte("example.com\n"),
+			wantOK:    true,
+			wantLine:  1,
+			wantIP:    netip.Addr{},
+			wantHosts: nil,
+			wantIsErr: true,
+		},
+		{
+			name:      "Comment",
+			inBuf:     []byte("# comment\n"),
+			wantOK:    false,
+			wantLine:  1,
+			wantIP:    netip.Addr{},
+			wantHosts: nil,
+			wantIsErr: false,
+		},
+		{
+			name:      "CRLF",
+			inBuf:     []byte("127.0.0.1 example.com\r\n"),
+			wantOK:    true,
+			wantLine:  1,
+			wantIP:    netip.AddrFrom4([4]byte{127, 0, 0, 1}),
+			wantHosts: []string{"example.com"},
+			wantIsErr: false,
+		},
+	}
+
+	for _, tc := range tt {
+		r := bytes.NewReader(tc.inBuf)
+		p := NewHostsParser(r)
+		gotOK := p.Parse()
+
+		if gotOK != tc.wantOK {
+			t.Errorf("%s: ok: expected %t, got %t", tc.name, tc.wantOK, gotOK)
+		}
+
+		if p.Line != tc.wantLine {
+			t.Errorf("%s: p.Line: expected %d, got %d", tc.name, tc.wantLine, p.Line)
+		}
+
+		if !slices.Equal(p.Hosts, tc.wantHosts) {
+			t.Errorf("%s: p.Hosts: expected %v, got %v", tc.name, tc.wantHosts, p.Hosts)
+		}
+
+		gotIsErr := p.Err != nil
+		if gotIsErr != tc.wantIsErr {
+			wantErr := "no error"
+			if tc.wantIsErr {
+				wantErr = "any error"
+			}
+
+			t.Errorf("%s: p.Err: expected %s, got %#v", tc.name, wantErr, p.Err)
+		}
+	}
+}
+
+func TestHostsParserParseMultiple(t *testing.T) {
+	s := "127.0.0.1 example.com\n# comment\n0.0.0.0 another.example.com\n"
+	r := strings.NewReader(s)
+	p := NewHostsParser(r)
+	var ok bool
+
+	ok = p.Parse()
+	if !ok {
+		t.Fatal("first parse failed")
+	}
+	if p.IP != netip.AddrFrom4([4]byte{127, 0, 0, 1}) {
+		t.Errorf("first parse: p.IP: expected 127.0.0.1, got %s", p.IP)
+	}
+	if p.Line != 1 {
+		t.Errorf("first parse: p.Line: expected 1, got %d", p.Line)
+	}
+	if !slices.Equal(p.Hosts, []string{"example.com"}) {
+		t.Errorf("first parse: p.Hosts: expected [example.com], got %v", p.Hosts)
+	}
+	if p.Err != nil {
+		t.Errorf("first parse: p.Err: expected nil, got %#v", p.Err)
+	}
+
+	ok = p.Parse()
+	if !ok {
+		t.Fatal("second parse failed")
+	}
+	if p.Line != 3 {
+		t.Errorf("first parse: p.Line: expected 3, got %d", p.Line)
+	}
+	if p.IP != netip.AddrFrom4([4]byte{0, 0, 0, 0}) {
+		t.Errorf("second parse: p.IP: expected 0.0.0.0, got %s", p.IP)
+	}
+	if !slices.Equal(p.Hosts, []string{"another.example.com"}) {
+		t.Errorf("second parse: p.Hosts: expected [another.example.com], got %v", p.Hosts)
+	}
+	if p.Err != nil {
+		t.Errorf("second parse: p.Err: expected nil, got %#v", p.Err)
+	}
+
+	ok = p.Parse()
+	if ok {
+		t.Fatal("third parse unexpectedly success")
+	}
+	if p.Err != nil {
+		t.Errorf("third parse: p.Err: expected nil, got %#v", p.Err)
+	}
+}
+
+func TestHostsParserParseError(t *testing.T) {
+	s := "\n\nexample.com"
+	r := strings.NewReader(s)
+	p := NewHostsParser(r)
+
+	if !p.Parse() {
+		t.Fatal("parse failed")
+	}
+
+	err, ok := p.Err.(*ResourceError)
+	if !ok {
+		t.Fatalf("err: expected *ResourceError, got %T", p.Err)
+	}
+	if err.Name != "" {
+		t.Errorf("err.Name: expected \"\", got %q", err.Name)
+	}
+	if err.Line != 3 {
+		t.Errorf("err.Line: expected 3, got %d", err.Line)
+	}
+	if err.Err == nil {
+		t.Error("err.Err: expected any error, got nil")
+	}
+}
+
+func TestHostsParserReadError(t *testing.T) {
+	err := errors.New("test error")
+	r := &ErrorReader{Err: err}
+	p := NewHostsParser(r)
+
+	ok := p.Parse()
+	if ok {
+		t.Fatal("parse unexpectedly success")
+	}
+	if p.Err != err {
+		t.Errorf("p.Err: expected %#v, got %#v", err, p.Err)
+	}
+}
 
 func TestParseHostsLine(t *testing.T) {
 	tt := []struct {

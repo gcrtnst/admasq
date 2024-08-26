@@ -65,3 +65,11 @@ func TestResourceErrorError(t *testing.T) {
 		}
 	}
 }
+
+type ErrorReader struct {
+	Err error
+}
+
+func (r *ErrorReader) Read(p []byte) (int, error) {
+	return 0, r.Err
+}
