@@ -86,3 +86,11 @@ func ParseHostsLine(line []byte) (netip.Addr, []string, error) {
 	}
 	return ip, hs, nil
 }
+
+type HostsIPError struct {
+	IP netip.Addr
+}
+
+func (e *HostsIPError) Error() string {
+	return e.IP.String() + " is neither a loopback address nor an unspecified address"
+}

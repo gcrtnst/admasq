@@ -270,3 +270,12 @@ func TestParseHostsLine(t *testing.T) {
 		}
 	}
 }
+
+func TestHostsIPErrorError(t *testing.T) {
+	err := &HostsIPError{IP: netip.AddrFrom4([4]byte{192, 168, 0, 1})}
+	got := err.Error()
+	const want = "192.168.0.1 is neither a loopback address nor an unspecified address"
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+}
