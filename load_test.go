@@ -66,6 +66,26 @@ func TestResourceErrorError(t *testing.T) {
 	}
 }
 
+func HelpLoaderTest(t *testing.T, l Loader, wantOK bool, wantF Filter, wantHasErr bool) {
+	t.Helper()
+
+	gotOK := l.Load()
+	if gotOK != wantOK {
+		t.Errorf("ok: expected %t, got %t", wantOK, gotOK)
+	}
+
+	gotF := l.Filter()
+	if gotF != wantF {
+		t.Errorf("l.Filter(): expected %#v, got %#v", wantF, gotF)
+	}
+
+	gotErr := l.Err()
+	gotHasErr := gotErr != nil
+	if gotHasErr != wantHasErr {
+		t.Errorf("l.Err() != nil: expected %t, got %t", wantHasErr, gotHasErr)
+	}
+}
+
 type ErrorReader struct {
 	Err error
 }
