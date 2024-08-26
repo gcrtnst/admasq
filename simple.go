@@ -51,12 +51,12 @@ func (l *SimpleLoader) Filter() Filter { return l.f }
 func (l *SimpleLoader) Err() error     { return l.err }
 
 type SimpleParser struct {
-	s    *bufio.Scanner
-	lnum int
-
 	Line   int
 	Domain string
 	Err    error
+
+	s    *bufio.Scanner
+	lnum int
 }
 
 func NewSimpleParser(r io.Reader) *SimpleParser {
