@@ -120,19 +120,16 @@ func HelpSimpleParserTest(t *testing.T, p *SimpleParser, wantOK bool, wantLine i
 		t.Errorf("ok: expected %t, got %t", wantOK, gotOK)
 	}
 
-	gotLine := p.Line()
-	if gotLine != wantLine {
-		t.Errorf("p.Line(): expected %d, got %d", wantLine, gotLine)
+	if p.Line != wantLine {
+		t.Errorf("p.Line: expected %d, got %d", wantLine, p.Line)
 	}
 
-	gotDomain := p.Domain()
-	if gotDomain != wantDomain {
-		t.Errorf("p.Domain(): expected %q, got %q", wantDomain, gotDomain)
+	if p.Domain != wantDomain {
+		t.Errorf("p.Domain: expected %q, got %q", wantDomain, p.Domain)
 	}
 
-	gotErr := p.Err()
-	if gotErr != wantErr {
-		t.Errorf("p.Err(): expected %#v, got %#v", wantErr, gotErr)
+	if p.Err != wantErr {
+		t.Errorf("p.Err: expected %#v, got %#v", wantErr, p.Err)
 	}
 
 	if t.Failed() {

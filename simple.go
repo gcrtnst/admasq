@@ -25,16 +25,16 @@ func (l *SimpleLoader) SetException(exc bool) {
 func (l *SimpleLoader) Load() bool {
 	if !l.p.Parse() {
 		l.f = Filter{}
-		l.err = l.p.Err()
+		l.err = l.p.Err
 		return false
 	}
 
 	var err error
-	domain := l.p.Domain()
+	domain := l.p.Domain
 	domain, err = IDNAToASCII(domain)
 	if err != nil {
 		err = &ResourceError{
-			Line: l.p.Line(),
+			Line: l.p.Line,
 			Err:  err,
 		}
 	}
@@ -51,11 +51,12 @@ func (l *SimpleLoader) Filter() Filter { return l.f }
 func (l *SimpleLoader) Err() error     { return l.err }
 
 type SimpleParser struct {
-	s *bufio.Scanner
+	s    *bufio.Scanner
+	lnum int
 
-	lnum   int
-	domain string
-	err    error
+	Line   int
+	Domain string
+	Err    error
 }
 
 func NewSimpleParser(r io.Reader) *SimpleParser {
@@ -71,20 +72,18 @@ func (p *SimpleParser) Parse() bool {
 		line := p.s.Bytes()
 		domain := ParseSimpleLine(line)
 		if domain != "" {
-			p.domain = domain
-			p.err = nil
+			p.Line = p.lnum
+			p.Domain = domain
+			p.Err = nil
 			return true
 		}
 	}
 
-	p.domain = ""
-	p.err = p.s.Err()
+	p.Line = p.lnum
+	p.Domain = ""
+	p.Err = p.s.Err()
 	return false
 }
-
-func (p *SimpleParser) Line() int      { return p.lnum }
-func (p *SimpleParser) Domain() string { return p.domain }
-func (p *SimpleParser) Err() error     { return p.err }
 
 func ParseSimpleLine(line []byte) string {
 	lo := 0
