@@ -4,10 +4,126 @@ import (
 	"bytes"
 	"errors"
 	"net/netip"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func TestHostsLoaderLoadEmpty(t *testing.T) {
+	r := strings.NewReader("")
+	l := NewHostsLoader(r)
+	HelpLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestHostsLoaderLoadNormal(t *testing.T) {
+	s := "" +
+		"127.0.0.1 1.example.com\n" +
+		"127.0.0.1 2.example.com 3.example.com 4.example.com\n" +
+		"127.0.0.1 5.example.com 6.example.com\n" +
+		"0.0.0.0   7.example.com\n"
+	r := strings.NewReader(s)
+	l := NewHostsLoader(r)
+	HelpLoaderTest(t, l, true, Filter{Domain: "1.example.com"}, false)
+	HelpLoaderTest(t, l, true, Filter{Domain: "2.example.com"}, false)
+	HelpLoaderTest(t, l, true, Filter{Domain: "3.example.com"}, false)
+	HelpLoaderTest(t, l, true, Filter{Domain: "4.example.com"}, false)
+	HelpLoaderTest(t, l, true, Filter{Domain: "5.example.com"}, false)
+	HelpLoaderTest(t, l, true, Filter{Domain: "6.example.com"}, false)
+	HelpLoaderTest(t, l, true, Filter{Domain: "7.example.com"}, false)
+	HelpLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestHostsLoaderIPError(t *testing.T) {
+	r := strings.NewReader("x.x.x.x example.com")
+	l := NewHostsLoader(r)
+
+	HelpLoaderTest(t, l, true, Filter{}, true)
+	gotErr := l.Err()
+	if gotResErr, ok := gotErr.(*ResourceError); !ok {
+		t.Errorf("l.Err().(type): expected *ResourceError, got %T", gotErr)
+	} else {
+		const wantResErrName = ""
+		if gotResErr.Name != wantResErrName {
+			t.Errorf("l.Err().Name: expected %q, got %q", wantResErrName, gotResErr.Name)
+		}
+
+		const wantResErrLine = 1
+		if gotResErr.Line != wantResErrLine {
+			t.Errorf("l.Err().Line: expected %d, got %d", wantResErrLine, gotResErr.Line)
+		}
+
+		if gotResErr.Err == nil {
+			t.Error("l.Err().Err: expected non-nil error, got nil")
+		}
+	}
+
+	HelpLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestHostsLoaderRedirectError(t *testing.T) {
+	r := strings.NewReader("192.168.0.1 example.com")
+	l := NewHostsLoader(r)
+
+	HelpLoaderTest(t, l, true, Filter{}, true)
+
+	wantErr := &ResourceError{
+		Line: 1,
+		Err: &HostsIPError{
+			IP: netip.AddrFrom4([4]byte{192, 168, 0, 1}),
+		},
+	}
+	gotErr := l.Err()
+	if !reflect.DeepEqual(gotErr, wantErr) {
+		t.Errorf("l.Err(): expected %#v, got %#v", wantErr, gotErr)
+	}
+
+	HelpLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestHostsLoaderNoHostError(t *testing.T) {
+	r := strings.NewReader("127.0.0.1")
+	l := NewHostsLoader(r)
+
+	HelpLoaderTest(t, l, true, Filter{}, true)
+
+	wantErr := &ResourceError{Line: 1, Err: ErrMissingHostname}
+	gotErr := l.Err()
+	if !reflect.DeepEqual(gotErr, wantErr) {
+		t.Errorf("l.Err(): expected %#v, got %#v", wantErr, gotErr)
+	}
+
+	HelpLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestHostsLoaderIDNANormal(t *testing.T) {
+	r := strings.NewReader("127.0.0.1 お名前.com")
+	l := NewHostsLoader(r)
+	HelpLoaderTest(t, l, true, Filter{Domain: "xn--t8jx73hngb.com"}, false)
+	HelpLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestHostsLoaderIDNAError(t *testing.T) {
+	r := strings.NewReader("127.0.0.1 --.com")
+	l := NewHostsLoader(r)
+
+	HelpLoaderTest(t, l, true, Filter{Domain: "--.com"}, true)
+	HelpResourceErrorTest(t, "l.Err()", l.Err(), "", 1)
+
+	HelpLoaderTest(t, l, false, Filter{}, false)
+}
+
+func TestHostsLoaderReadError(t *testing.T) {
+	mockErr := errors.New("test")
+	r := &ErrorReader{Err: mockErr}
+	l := NewHostsLoader(r)
+
+	HelpLoaderTest(t, l, false, Filter{}, true)
+	gotErr := l.Err()
+	if gotErr != mockErr {
+		t.Errorf("l.Err(): expected %#v, got %#v", mockErr, gotErr)
+	}
+}
 
 func TestHostsParserParseSingle(t *testing.T) {
 	tt := []struct {

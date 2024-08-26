@@ -3,9 +3,86 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"net/netip"
 )
+
+var ErrMissingHostname = errors.New("missing hostname field")
+
+type HostsLoader struct {
+	p *HostsParser
+
+	hs []string
+	i  int
+
+	f   Filter
+	err error
+}
+
+func NewHostsLoader(r io.Reader) *HostsLoader {
+	p := NewHostsParser(r)
+	return &HostsLoader{p: p}
+}
+
+func (l *HostsLoader) Load() bool {
+	if l.i+1 < len(l.hs) {
+		l.i++
+		l.setDomain(l.hs[l.i])
+		return true
+	}
+	l.hs = nil
+	l.i = 0
+
+	for l.p.Parse() {
+		if l.p.Err != nil {
+			l.f = Filter{}
+			l.err = l.p.Err
+			return true
+		}
+
+		if !l.p.IP.IsLoopback() && !l.p.IP.IsUnspecified() {
+			l.f = Filter{}
+			l.err = &ResourceError{
+				Line: l.p.Line,
+				Err:  &HostsIPError{IP: l.p.IP},
+			}
+			return true
+		}
+
+		if len(l.p.Hosts) <= 0 {
+			l.f = Filter{}
+			l.err = &ResourceError{
+				Line: l.p.Line,
+				Err:  ErrMissingHostname,
+			}
+			return true
+		}
+
+		l.hs = l.p.Hosts
+		l.setDomain(l.p.Hosts[0])
+		return true
+	}
+	l.f = Filter{}
+	l.err = l.p.Err
+	return false
+}
+
+func (l *HostsLoader) setDomain(domain string) {
+	domain, err := IDNAToASCII(domain)
+	if err != nil {
+		err = &ResourceError{
+			Line: l.p.Line,
+			Err:  err,
+		}
+	}
+
+	l.f = Filter{Domain: domain}
+	l.err = err
+}
+
+func (l *HostsLoader) Filter() Filter { return l.f }
+func (l *HostsLoader) Err() error     { return l.err }
 
 type HostsParser struct {
 	Line  int
