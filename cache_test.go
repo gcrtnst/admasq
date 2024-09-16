@@ -1,11 +1,70 @@
 package main
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
 )
+
+func TestBlobCacheOpen(t *testing.T) {
+	c := &BlobCache{Root: t.TempDir()}
+
+	f, name, err := c.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	in := []byte("test")
+	_, err = f.Write(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err = c.Open(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close() // error ignored
+
+	got, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(got, in) {
+		t.Errorf("expected %q, got %q", in, got)
+	}
+}
+
+func TestBlobCacheOpenInvalidName(t *testing.T) {
+	c := &BlobCache{Root: t.TempDir()}
+	f, err := c.Open("data-01234567")
+	if f != nil {
+		t.Errorf("f: expected nil, got %#v", f)
+	}
+	if err != ErrInvalidCachedBlobName {
+		t.Errorf("err: expected %#v, got %#v", ErrInvalidCachedBlobName, err)
+	}
+}
+
+func TestBlobCacheOpenNotFound(t *testing.T) {
+	c := &BlobCache{Root: t.TempDir()}
+	f, err := c.Open("data_01234567")
+	if f != nil {
+		t.Errorf("f: expected nil, got %#v", f)
+	}
+	if !os.IsNotExist(err) {
+		t.Errorf("err: expected ErrNotExist, got %#v", err)
+	}
+}
 
 func TestBlobCacheCreate(t *testing.T) {
 	c := &BlobCache{Root: t.TempDir()}

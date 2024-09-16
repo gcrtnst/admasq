@@ -1,14 +1,26 @@
 package main
 
 import (
+	"errors"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+var ErrInvalidCachedBlobName = errors.New("invalid data file name in cache")
+
 type BlobCache struct {
 	Root string
+}
+
+func (c *BlobCache) Open(name string) (*os.File, error) {
+	if !IsCachedBlobName(name) {
+		return nil, ErrInvalidCachedBlobName
+	}
+
+	path := filepath.Join(c.Root, name)
+	return os.Open(path)
 }
 
 func (c *BlobCache) Create() (*os.File, string, error) {
