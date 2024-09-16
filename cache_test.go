@@ -112,3 +112,35 @@ func TestCreateCacheBlobExists(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestIsCachedBlobName(t *testing.T) {
+	tt := []struct {
+		in   string
+		want bool
+	}{
+		{in: "data_01234567", want: true},   // ok
+		{in: "data_01234569", want: true},   // ok '9'
+		{in: "data_0123456a", want: true},   // ok 'a'
+		{in: "data_0123456z", want: true},   // ok 'z'
+		{in: "data_abcdefgh", want: true},   // ok lower
+		{in: "", want: false},               // empty
+		{in: "data_0123456", want: false},   // too short
+		{in: "data_012345678", want: false}, // too long
+		{in: "data-01234567", want: false},  // invalid prefix
+		{in: "data_%1234567", want: false},  // invalid rand[0]
+		{in: "data_0123%567", want: false},  // invalid rand[4]
+		{in: "data_0123456%", want: false},  // invalid rand[7]
+		{in: "data_0123456/", want: false},  // invalid rand (< '0')
+		{in: "data_0123456:", want: false},  // invalid rand (> '9')
+		{in: "data_0123456`", want: false},  // invalid rand (< 'a')
+		{in: "data_0123456{", want: false},  // invalid rand (> 'z')
+		{in: "data_ABCDEFGH", want: false},  // invalid rand (capital)
+	}
+
+	for _, tc := range tt {
+		got := IsCachedBlobName(tc.in)
+		if got != tc.want {
+			t.Errorf("%q: expected %t, got %t", tc.in, tc.want, got)
+		}
+	}
+}

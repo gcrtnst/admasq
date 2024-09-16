@@ -4,6 +4,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type BlobCache struct {
@@ -18,8 +19,9 @@ func (c *BlobCache) create(rand func(n uint) uint) (*os.File, string, error) {
 	const prefix = "data_"
 	const randLen = 8
 	const randTbl = "0123456789abcdefghijklmnopqrstuvwxyz"
+	const nameLen = len(prefix) + randLen
 
-	var nameBuf [len(prefix) + randLen]byte
+	var nameBuf [nameLen]byte
 	copy(nameBuf[:], prefix)
 
 	root := c.Root
@@ -39,4 +41,23 @@ func (c *BlobCache) create(rand func(n uint) uint) (*os.File, string, error) {
 		}
 	}
 	return nil, "", err
+}
+
+func IsCachedBlobName(name string) bool {
+	const prefix = "data_"
+	const randLen = 8
+	const nameLen = len(prefix) + randLen
+
+	if len(name) != nameLen || !strings.HasPrefix(name, prefix) {
+		return false
+	}
+
+	for i := len(prefix); i < len(name); i++ {
+		b := name[i]
+		if (b < '0' || '9' < b) && (b < 'a' || 'z' < b) {
+			return false
+		}
+	}
+
+	return true
 }
